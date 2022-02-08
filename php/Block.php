@@ -110,59 +110,87 @@ class Block {
 		}
 
 		/**
-		 * Query for up to 5 posts & pages published between 9:00 and 17:00,
-		 * with the tag (slug) `foo`, and category (name) `baz`.
+		 * Prep data to display for up to 5 posts & pages published between
+		 * 9:00 and 17:00, with the tag (slug) `foo`, and category (name)
+		 * `baz`.
 		 */
-		$posts_list_query = new WP_Query(
-			[
-				'post_type'              => [ 'post', 'page' ],
-				'post_status'            => 'publish',
-				'fields'                 => 'ids',
-				'update_post_meta_cache' => false, // We're not displaying any post meta.
-				'update_post_term_cache' => false, // Or terms.
-				'posts_per_page'         => 6, // Actual number of posts we want (5), plus one for our current post.
-				'date_query'             => [
-					[
-						'hour'   => 9,
-						'compare'=> '>=',
+
+		// Cache the post IDs since those are the key values we're looking for.
+		$cache_key                 = 'xwp\site_counts_block\posts_list_query_post_ids';
+		$posts_list_query_post_ids = get_transient( $cache_key );
+
+		// No cache found, query for the data and cache it.
+		if ( false === $posts_list_query_post_ids ) {
+			$posts_list_query = new WP_Query(
+				[
+					'post_type'              => [ 'post', 'page' ],
+					'post_status'            => 'publish',
+					'fields'                 => 'ids',
+					'update_post_meta_cache' => false, // We're not displaying any post meta.
+					'update_post_term_cache' => false, // Or terms.
+					'posts_per_page'         => 6, // Actual number of posts we want (5), plus one for our current post.
+					'date_query'             => [
+						[
+							'hour'   => 9,
+							'compare'=> '>=',
+						],
+						[
+							'hour'   => 17,
+							'compare'=> '<=',
+						],
 					],
-					[
-						'hour'   => 17,
-						'compare'=> '<=',
-					]
-				],
-				'tax_query' => [
-					[
-						'taxonomy' => 'post_tag',
-						'field'    => 'slug',
-						'terms'    => 'foo',
+					'tax_query' => [
+						[
+							'taxonomy' => 'post_tag',
+							'field'    => 'slug',
+							'terms'    => 'foo',
+						],
+						[
+							'taxonomy'=> 'category',
+							'field'   => 'name',
+							'terms'   => 'baz',
+						],
 					],
-					[
-						'taxonomy'=> 'category',
-						'field'   => 'name',
-						'terms'   => 'baz',
-					]
-				],
-			]
-		);
+				]
+			);
 
-		/**
-		 * If our current post (`get_the_ID()`) is returned in the query results,
-		 * remove it. This mimics the functionality of using the `post__not_in`
-		 * argument on the query.
-		 *
-		 * @see https://docs.wpvip.com/technical-references/code-quality-and-best-practices/using-post__not_in/
-		 */
-		if ( in_array( $current_post_id, $posts_list_query->posts, true ) ) {
+			/**
+			 * If our current post (`get_the_ID()`) is returned in the query results,
+			 * remove it. This mimics the functionality of using the `post__not_in`
+			 * argument on the query.
+			 *
+			 * @see https://docs.wpvip.com/technical-references/code-quality-and-best-practices/using-post__not_in/
+			 */
+			if ( in_array( $current_post_id, $posts_list_query->posts, true ) ) {
 
-			// Remove the current post id by using `array_diff`, then reset the
-			// keys using `array_values` to ensure no gaps.
-			$posts_list_query->posts = array_values( array_diff( $posts_list_query->posts, [ $current_post_id ] ) );
+				// Remove the current post id by using `array_diff`, then reset the
+				// keys using `array_values` to ensure no gaps.
+				$posts_list_query->posts = array_values( array_diff( $posts_list_query->posts, [ $current_post_id ] ) );
 
-			// Update the post count and found post values now that the current
-			// post ID has been removed.
-			$posts_list_query->post_count    = $posts_list_query->post_count - 1;
-			$posts_list_query->found_posts   = $posts_list_query->found_posts - 1;
+				// Update the post count and found post values now that the current
+				// post ID has been removed.
+				$posts_list_query->post_count    = $posts_list_query->post_count - 1;
+				$posts_list_query->found_posts   = $posts_list_query->found_posts - 1;
+			}
+
+			// Cache for 5 minutes.
+			set_transient( $cache_key, $posts_list_query->posts, MINUTE_IN_SECONDS * 5 );
+
+		} else {
+			/**
+			 * Use the cached post ids to construct a real WP_Query. This is a
+			 * bit more work, but for cache storage reasons, we don't want to
+			 * store the entire WP_Query object, just the relevant data.
+			 */
+			$posts_list_query = new WP_Query(
+				[
+					'post__in'       => $posts_list_query_post_ids,
+					'post_type'      => [ 'post', 'page' ], // Post types need to match the original query.
+					'fields'         => 'ids',
+				    'orderby'        => 'post__in', // Ensure proper order is maintained.
+				    'posts_per_page' => count( $posts_list_query_post_ids ), // Ensure all ids are used.
+				]
+			);
 		}
 
 		// Block render callbacks expect a string, so begin capturing any direct
