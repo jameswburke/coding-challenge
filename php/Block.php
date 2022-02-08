@@ -249,8 +249,14 @@ class Block {
 				<h2><?php
 					echo esc_html(
 						sprintf(
-							__( '%1$d posts with the tag of foo and the category of baz', 'site-counts' ),
-							absint( $posts_list_query->found_posts )
+							__( '%1$d %2$s with the tag of foo and the category of baz', 'site-counts' ),
+							absint( $posts_list_query->found_posts ),
+							_n(
+								'post',
+								'posts',
+								absint( $posts_list_query->found_posts ),
+								'site-counts'
+							)
 						)
 					);
 				?></h2>
