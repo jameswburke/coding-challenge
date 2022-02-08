@@ -187,8 +187,8 @@ class Block {
 					'post__in'       => $posts_list_query_post_ids,
 					'post_type'      => [ 'post', 'page' ], // Post types need to match the original query.
 					'fields'         => 'ids',
-				    'orderby'        => 'post__in', // Ensure proper order is maintained.
-				    'posts_per_page' => count( $posts_list_query_post_ids ), // Ensure all ids are used.
+					'orderby'        => 'post__in', // Ensure proper order is maintained.
+					'posts_per_page' => count( $posts_list_query_post_ids ), // Ensure all ids are used.
 				]
 			);
 		}
